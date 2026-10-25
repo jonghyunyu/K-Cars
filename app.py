@@ -20,7 +20,7 @@ st.set_page_config(
 
 EXCEL_FILE = "car_data.xlsx"
 
-# 구글 시트 연결 함수 (PEM 인증 에러 원천 방지 코드 포함)
+# 구글 시트 연결 함수 (PEM 패딩 및 인증 에러 자동 교정 기능 포함)
 def get_gspread_client():
     if not GSPREAD_AVAILABLE:
         return None
@@ -28,7 +28,13 @@ def get_gspread_client():
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                pk = str(creds_dict["private_key"])
+                # PEM 키의 깨진 줄바꿈이나 패딩 오류를 완벽하게 자동 정비
+                clean_pk = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\\n", "\n")
+                clean_pk = "".join(clean_pk.split())
+                formatted_lines = [clean_pk[i:i+64] for i in range(0, len(clean_pk), 64)]
+                creds_dict["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(formatted_lines) + "\n-----END PRIVATE KEY-----\n"
+                
             scopes = [
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive"
@@ -72,29 +78,6 @@ def get_default_dataframes():
     df_man = pd.DataFrame([{"순서": 1, "단계명": "1단계: 안전 확보", "행동요령": "비상등 켜고 안전지대로 대피합니다."}])
     return df_cars, df_rules, df_cons, df_reps, df_fbs, df_man
 
-def save_data_to_google_sheets(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
-    client = get_gspread_client()
-    if not client or "spreadsheet_url" not in st.secrets:
-        return False
-    try:
-        sheet_url = st.secrets["spreadsheet_url"]
-        spreadsheet = client.open_by_url(sheet_url)
-        def update_ws(ws_name, df):
-            ws = spreadsheet.worksheet(ws_name)
-            ws.clear()
-            df_str = df.astype(str)
-            ws.update([df_str.columns.values.tolist()] + df_str.values.tolist())
-        update_ws("1_차량기본정보", df_cars)
-        update_ws("2_교체주기기준", df_rules)
-        update_ws("3_소모품이력", df_cons)
-        update_ws("4_정비수리이력", df_reps)
-        update_ws("5_특이사항", df_fbs)
-        update_ws("6_사고대처매뉴얼", df_man)
-        return True
-    except Exception as e:
-        st.error(f"구글 시트 저장 실패: {e}")
-        return False
-
 gs_data, db_status_msg = load_data_from_google_sheets()
 if gs_data is not None:
     df_cars, df_rules, df_cons, df_reps, df_fbs, df_man = gs_data
@@ -112,15 +95,6 @@ else:
     df_fbs = pd.read_excel(xls, "5_특이사항")
     df_man = pd.read_excel(xls, "6_사고대처매뉴얼")
     db_status_msg = "💻 로컬 연동모드 (엑셀)"
-
-def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
-    if "gcp_service_account" in st.secrets:
-        success = save_data_to_google_sheets(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man)
-        if success:
-            return
-    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-        for s_name, df in {"1_차량기본정보": df_cars, "2_교체주기기준": df_rules, "3_소모품이력": df_cons, "4_정비수리이력": df_reps, "5_특이사항": df_fbs, "6_사고대처매뉴얼": df_man}.items():
-            df.to_excel(writer, sheet_name=s_name, index=False)
 
 st.sidebar.title("🚘 차량 QR 관리 시스템")
 st.sidebar.caption(db_status_msg)
