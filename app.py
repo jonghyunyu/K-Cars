@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 import os
+import base64
 
 try:
     import gspread
@@ -29,13 +30,17 @@ def get_gspread_client():
             if "private_key" in creds_dict:
                 raw_key = str(creds_dict["private_key"])
                 
-                # PEM 키 정제 및 패딩 검사
+                # PEM 키 정제 및 Base64 패딩 자동 보정 로직
                 cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "")
                 cleaned = cleaned.replace("-----END PRIVATE KEY-----", "")
                 cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
                 pure_chars = "".join(cleaned.split())
                 
-                # 만약 키가 잘렸거나 패딩이 깨졌는지 여부 확인을 위해 디버그 메시지 출력 가능
+                # Invalid padding 에러 방지를 위해 4의 배수 길이에 맞춰 패딩(=) 자동 추가
+                missing_padding = len(pure_chars) % 4
+                if missing_padding:
+                    pure_chars += '=' * (4 - missing_padding)
+                
                 chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
                 formatted_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
                 
