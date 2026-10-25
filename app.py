@@ -29,14 +29,13 @@ def get_gspread_client():
             if "private_key" in creds_dict:
                 raw_key = str(creds_dict["private_key"])
                 
-                # [소거법 기반 완벽한 PEM 키 정제 로직]
-                # 1. 헤더/푸터 및 리터럴 \n, 실제 줄바꿈, 공백 제거 후 순수 Base64 문자열만 추출
+                # PEM 키 정제 및 패딩 검사
                 cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "")
                 cleaned = cleaned.replace("-----END PRIVATE KEY-----", "")
                 cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
                 pure_chars = "".join(cleaned.split())
                 
-                # 2. 표준 PEM 규격에 맞게 64글자씩 줄바꿈하여 재조립
+                # 만약 키가 잘렸거나 패딩이 깨졌는지 여부 확인을 위해 디버그 메시지 출력 가능
                 chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
                 formatted_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
                 
@@ -50,7 +49,6 @@ def get_gspread_client():
             client = gspread.authorize(credentials)
             return client
     except Exception as e:
-        # 에러 발생 시 사이드바에 구체적인 원인 출력
         st.sidebar.error(f"구글 인증 실패 디버그: {e}")
     return None
 
