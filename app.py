@@ -20,7 +20,6 @@ st.set_page_config(
 
 EXCEL_FILE = "car_data.xlsx"
 
-# 구글 시트 연결 함수 (PEM 패딩 및 인증 에러 자동 교정 기능 포함)
 def get_gspread_client():
     if not GSPREAD_AVAILABLE:
         return None
@@ -28,12 +27,20 @@ def get_gspread_client():
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in creds_dict:
-                pk = str(creds_dict["private_key"])
-                # PEM 키의 깨진 줄바꿈이나 패딩 오류를 완벽하게 자동 정비
-                clean_pk = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\\n", "\n")
-                clean_pk = "".join(clean_pk.split())
-                formatted_lines = [clean_pk[i:i+64] for i in range(0, len(clean_pk), 64)]
-                creds_dict["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(formatted_lines) + "\n-----END PRIVATE KEY-----\n"
+                raw_key = str(creds_dict["private_key"])
+                
+                # [소거법 기반 완벽한 PEM 키 정제 로직]
+                # 1. 헤더/푸터 및 리터럴 \n, 실제 줄바꿈, 공백 제거 후 순수 Base64 문자열만 추출
+                cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "")
+                cleaned = cleaned.replace("-----END PRIVATE KEY-----", "")
+                cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
+                pure_chars = "".join(cleaned.split())
+                
+                # 2. 표준 PEM 규격에 맞게 64글자씩 줄바꿈하여 재조립
+                chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
+                formatted_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
+                
+                creds_dict["private_key"] = formatted_key
                 
             scopes = [
                 "https://www.googleapis.com/auth/spreadsheets",
@@ -43,7 +50,8 @@ def get_gspread_client():
             client = gspread.authorize(credentials)
             return client
     except Exception as e:
-        st.sidebar.error(f"구글 인증 실패: {e}")
+        # 에러 발생 시 사이드바에 구체적인 원인 출력
+        st.sidebar.error(f"구글 인증 실패 디버그: {e}")
     return None
 
 def load_data_from_google_sheets():
