@@ -274,7 +274,7 @@ def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
 
 
 # ---------------------------------------------------------
-# 4. 유틸리티 계산 및 팝업(Dialog) 함수 (요청 사항 반영)
+# 4. 유틸리티 계산 및 팝업(Dialog) 함수
 # ---------------------------------------------------------
 def safe_int(val, default=0):
     try:
@@ -309,7 +309,7 @@ def evaluate_consumable_status(current_km, last_km, cycle_km, last_date_str, cyc
     else:
         badge = "🟢 양호"
 
-    # 3, 11번 요구사항: 경과개월 반올림한 자연수 표기
+    # 3, 11, 14번 요구사항: 경과개월 반올림한 자연수 표기
     return badge, driven_km, round(months_elapsed), min(1.0, max_ratio)
 
 
@@ -327,7 +327,7 @@ def calc_dday_badge(target_date_str):
         return "⚪ 미상", 999
 
 
-# 1, 4번 요구사항 반영 팝업 제목 및 버튼 문구 수정
+# 1, 4번 요구사항 반영
 @st.dialog("🚗 차량 상태정보 알림")
 def show_car_alert_dialog(car_name, cons_alerts, fb_alerts, insp_alert):
     st.markdown(f"**[{car_name}]** 운행 전 반드시 아래 사항을 확인해 주세요.")
@@ -364,7 +364,7 @@ def show_car_alert_dialog(car_name, cons_alerts, fb_alerts, insp_alert):
         st.rerun()
 
 
-# 9, 10번 요구사항 반영 팝업 타이틀 및 문구 수정 (2번 문구 삭제)
+# 9, 10번 요구사항 반영 (2번 문구 삭제)
 @st.dialog("전체 차량 상태정보 알림")
 def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_cars_list):
     st.markdown(f"**[{branch_name}]** 현재 즉시 점검 및 조치가 필요한 항목 요약입니다.")
@@ -391,7 +391,7 @@ def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_ca
 
 
 # ---------------------------------------------------------
-# 5. 데이터 불러오기 및 사이드바 구성 (방법1 비밀번호 보안 적용)
+# 5. 데이터 불러오기 및 사이드바 구성 (방법1 비밀번호 인증 포함)
 # ---------------------------------------------------------
 (df_cars, df_rules, df_cons, df_reps, df_fbs, df_man), db_status_msg = load_all_data()
 
@@ -412,15 +412,15 @@ st.sidebar.divider()
 query_params = st.query_params
 qr_car_param = query_params.get("car", None)
 
-# 화면 모드 선택 문구 반영 (5번, 8번 요구사항)
+# 5, 8번 요구사항 반영 모드 선택 (사이드바 최상단 노출)
 nav_options = ["탑승차량 정보조회", "관리자 대시보드"]
-selected_nav = st.sidebar.sidebar_radio if hasattr(st.sidebar, "sidebar_radio") else st.sidebar.radio(
+selected_nav = st.sidebar.radio(
     "🖥️ 화면 모드 선택",
     nav_options,
     index=0
 )
 
-# 방법1: 관리자 대시보드 선택 시 비밀번호 입력 검증 로직 추가
+# 방법1 보안 인증 로직
 if selected_nav == "관리자 대시보드":
     if not st.session_state.admin_authenticated:
         st.sidebar.subheader("🔒 관리자 인증 필요")
@@ -431,7 +431,7 @@ if selected_nav == "관리자 대시보드":
                 st.rerun()
             else:
                 st.sidebar.error("비밀번호가 올바르지 않습니다.")
-        view_mode = "탑승차량 정보조회" # 인증 전에는 현장 모드로 고정
+        view_mode = "탑승차량 정보조회"
     else:
         view_mode = "관리자 대시보드"
         if st.sidebar.button("관리자 로그아웃", use_container_width=True):
@@ -591,7 +591,7 @@ if view_mode == "탑승차량 정보조회":
                     r_km = f_col2.number_input("정비 시점 주행거리 (Km)", min_value=0, value=current_km, step=100)
                     r_type = f_col1.selectbox("정비 구분", ["소모품", "일반정비", "사고수리", "정기점검"])
                     
-                    # 6번 요구사항 반영: 엔진오일 외에 설정된 모든 주요 소모품 항목 목록 연동
+                    # 6번 요구사항 반영
                     all_rule_items = df_rules["항목"].tolist() if not df_rules.empty else ["엔진오일"]
                     r_item = f_col2.selectbox("연동할 소모품 항목 (소모품 교체 시)", ["선택 안함"] + all_rule_items)
                     
@@ -647,7 +647,7 @@ if view_mode == "탑승차량 정보조회":
             st.markdown("#### ✍️ 운행 중 특이사항 신규 등록")
             with st.form("add_feedback_form", clear_on_submit=True):
                 fb_c1, fb_c2 = st.columns(2)
-                # 7번 요구사항: 작성자(성명/직급) -> 작성자(성명/부서명)
+                # 7번 요구사항 반영
                 fb_writer = fb_c1.text_input("작성자 (성명/부서명)")
                 fb_cat = fb_c2.selectbox("분류", ["소음/진동", "경고등 점등", "외관손상", "타이어/제동", "실내청결/비품", "기타"])
                 fb_content = st.text_area("상세 내용 (증상이나 요청사항을 적어주세요)")
@@ -663,7 +663,7 @@ if view_mode == "탑승차량 정보조회":
                             "확인일자": "-",
                             "분류": fb_cat,
                             "내용": fb_content.strip(),
-                            "처리상태": "조치필요" # 16번 요구사항 반영
+                            "처리상태": "조치필요"
                         }])
                         df_fbs = pd.concat([df_fbs, new_fb], ignore_index=True)
                         save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man)
@@ -706,7 +706,7 @@ else:
                 "항목": c_row["항목"],
                 "상태": badge,
                 "경과주행(Km)": driven_km,
-                "경과개월": m_elapsed # 14번 요구사항: 반올림한 자연수
+                "경과개월": m_elapsed
             })
 
     filtered_fbs = df_fbs[df_fbs["차량명"].isin(target_car_names)]
@@ -729,7 +729,7 @@ else:
     with title_col2:
         st.write("")
         if has_admin_alerts:
-            # 9번 요구사항: '중점 관리 알림 팝업 띄우기' -> '전체 차량 상태정보 알림 확인'
+            # 9번 요구사항 반영
             if st.button("전체 차량 상태정보 알림 확인", use_container_width=True):
                 show_admin_alert_dialog(selected_branch, alert_cons_list, pending_fbs_df, exp_cars_list)
 
@@ -741,7 +741,7 @@ else:
 
     st.divider()
 
-    # 12, 17, 18, 19번 요구사항 문구 반영 탭 이름 수정
+    # 12, 17, 18, 19번 요구사항 반영 탭 문구 수정
     adm_tab1, adm_tab2, adm_tab3, adm_tab4 = st.tabs([
         "전체 차량 현황 및 정비이력 모아보기",
         "현장 접수 특이사항 조치현황",
@@ -772,7 +772,6 @@ else:
         st.subheader("현장 접수 특이사항 조치현황")
         st.caption("표에서 '처리상태'와 '확인일자'를 직접 수정한 뒤 아래 저장 버튼을 누르면 즉시 반영됩니다.")
         
-        # 16번 요구사항 반영: '조치필요', '조치중', '조치완료' 3가지 선택 가능하도록 ColumnConfig 설정
         edited_fbs = st.data_editor(
             df_fbs,
             use_container_width=True,
