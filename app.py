@@ -49,24 +49,31 @@ st.markdown("""
         padding: 14px 16px;
         margin-bottom: 10px;
     }
-    .kpi-box {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-left: 5px solid #2a5298;
-        border-radius: 10px;
-        padding: 16px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    .popup-alert-box {
+        background-color: #fff5f5;
+        border-left: 5px solid #e53e3e;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+    }
+    .popup-warn-box {
+        background-color: #fefcbf;
+        border-left: 5px solid #d69e2e;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 EXCEL_FILE = "car_data.xlsx"
 
-# 구글 시트 연동 활성화 스위치 (1단계 앱 화면 확인 후 True로 전환 예정)
+# UI 및 팝업 확인 후 다음 단계에서 True로 전환
 ENABLE_GOOGLE_SHEETS = False
 
+
 # ---------------------------------------------------------
-# 2. 초기 기본 데이터 정의 (주차위치, 키위치 제거 버전)
+# 2. 초기 기본 데이터 정의 (주차위치, 키위치, 보험만료일 제거 버전)
 # ---------------------------------------------------------
 def get_default_dataframes():
     df_cars = pd.DataFrame([
@@ -79,8 +86,7 @@ def get_default_dataframes():
             "연료": "전기(EV)",
             "담당자_연락처": "본사 지원처 (내선 0000)",
             "최근 주행거리": 24150,
-            "정기검사 만료일": "2027-03-01",
-            "보험만료일": "2027-02-15"
+            "정기검사 만료일": "2027-03-01"
         },
         {
             "차량명": "본사-2",
@@ -90,9 +96,8 @@ def get_default_dataframes():
             "용도구분": "일반 업무용",
             "연료": "가솔린",
             "담당자_연락처": "본사 지원처 (내선 0000)",
-            "최근 주행거리": 48200,
-            "정기검사 만료일": "2026-12-15",
-            "보험만료일": "2027-01-20"
+            "최근 주행거리": 49500,
+            "정기검사 만료일": "2026-12-15"
         },
         {
             "차량명": "북부-1",
@@ -103,8 +108,7 @@ def get_default_dataframes():
             "연료": "하이브리드",
             "담당자_연락처": "수도권북부 운영팀",
             "최근 주행거리": 61500,
-            "정기검사 만료일": "2026-11-20",
-            "보험만료일": "2026-12-01"
+            "정기검사 만료일": "2026-11-15"
         },
         {
             "차량명": "영남-1",
@@ -115,8 +119,7 @@ def get_default_dataframes():
             "연료": "디젤",
             "담당자_연락처": "영남본부 운영팀",
             "최근 주행거리": 89400,
-            "정기검사 만료일": "2027-04-10",
-            "보험만료일": "2027-03-25"
+            "정기검사 만료일": "2027-04-10"
         }
     ])
 
@@ -130,22 +133,22 @@ def get_default_dataframes():
     ])
 
     df_cons = pd.DataFrame([
-        {"차량명": "본사-1", "항목": "에어컨필터", "교체주기(Km)": 15000, "교체주기(개월)": 6, "마지막 교체일": "2026-06-15", "마지막 교체 주행거리": 18000},
+        {"차량명": "본사-1", "항목": "에어컨필터", "교체주기(Km)": 15000, "교체주기(개월)": 6, "마지막 교체일": "2026-03-15", "마지막 교체 주행거리": 10000},
         {"차량명": "본사-1", "항목": "타이어 위치교환/교체", "교체주기(Km)": 20000, "교체주기(개월)": 24, "마지막 교체일": "2025-11-10", "마지막 교체 주행거리": 10000},
-        {"차량명": "본사-2", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2026-03-10", "마지막 교체 주행거리": 40000},
+        {"차량명": "본사-2", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2026-01-10", "마지막 교체 주행거리": 40000},
         {"차량명": "본사-2", "항목": "에어컨필터", "교체주기(Km)": 15000, "교체주기(개월)": 6, "마지막 교체일": "2026-03-10", "마지막 교체 주행거리": 40000},
         {"차량명": "북부-1", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2025-12-05", "마지막 교체 주행거리": 50500},
         {"차량명": "영남-1", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2026-05-20", "마지막 교체 주행거리": 82000}
     ])
 
     df_reps = pd.DataFrame([
-        {"차량명": "본사-1", "일자": "2026-07-20", "주행거리(Km)": 19500, "정비구분": "소모품", "내용": "에어컨필터 및 와이퍼 교체", "정비소": "블루핸즈 분당점"},
-        {"차량명": "본사-2", "일자": "2026-03-10", "주행거리(Km)": 40000, "정비구분": "소모품", "내용": "엔진오일 세트 교체", "정비소": "블루핸즈 수지점"},
+        {"차량명": "본사-1", "일자": "2026-07-20", "주행거리(Km)": 19500, "정비구분": "소모품", "내용": "와이퍼 블레이드 교체", "정비소": "블루핸즈 분당점"},
+        {"차량명": "본사-2", "일자": "2026-03-10", "주행거리(Km)": 40000, "정비구분": "소모품", "내용": "에어컨필터 교체", "정비소": "블루핸즈 수지점"},
         {"차량명": "북부-1", "일자": "2026-08-12", "주행거리(Km)": 58000, "정비구분": "일반정비", "내용": "타이어 펑크 패치 수리", "정비소": "오토큐 의정부점"}
     ])
 
     df_fbs = pd.DataFrame([
-        {"차량명": "본사-1", "날짜": "2026-10-22", "작성자": "김주임", "확인일자": "2026-10-22", "분류": "기타", "내용": "워셔액 보충 완료 및 실내 점검 완료", "처리상태": "🟢 조치완료"},
+        {"차량명": "본사-1", "날짜": "2026-10-25", "작성자": "박대리", "확인일자": "-", "분류": "타이어/제동", "내용": "운전석 앞바퀴 공기압 경고등 점등 확인 필요", "처리상태": "🔴 확인필요"},
         {"차량명": "북부-1", "날짜": "2026-10-24", "작성자": "이대리", "확인일자": "-", "분류": "소음/진동", "내용": "방지턱 넘을 때 하부 소음 약간 발생", "처리상태": "🔴 확인필요"}
     ])
 
@@ -166,12 +169,11 @@ def normalize_dataframe(df, default_df, drop_legacy_cols=True):
     if df is None or df.empty:
         return default_df.copy()
     df_clean = df.copy()
-    # 주차위치, 키위치 등 이전 버전 잔재 컬럼 자동 제거
+    # 주차위치, 키위치, 보험만료일 등 제거 대상 컬럼 자동 정리
     if drop_legacy_cols:
-        for legacy_col in ["주차위치", "주차 위치", "키위치", "키 위치", "보관장소"]:
+        for legacy_col in ["주차위치", "주차 위치", "키위치", "키 위치", "보관장소", "보험만료일", "자동차 보험만료일"]:
             if legacy_col in df_clean.columns:
                 df_clean = df_clean.drop(columns=[legacy_col])
-    # 필수 컬럼 누락 시 기본값으로 보충 (KeyError 방지)
     for col in default_df.columns:
         if col not in df_clean.columns:
             df_clean[col] = default_df[col].iloc[0] if len(default_df) > 0 else ""
@@ -209,7 +211,6 @@ def get_gspread_client():
 def load_all_data():
     def_cars, def_rules, def_cons, def_reps, def_fbs, def_man = get_default_dataframes()
 
-    # 1. 구글 시트 모드 켜져 있을 때 시도
     if ENABLE_GOOGLE_SHEETS:
         client = get_gspread_client()
         if client and "spreadsheet_url" in st.secrets:
@@ -225,7 +226,6 @@ def load_all_data():
             except Exception:
                 pass
 
-    # 2. 로컬 엑셀 파일 로드 (없거나 구버전이면 자동 갱신)
     if os.path.exists(EXCEL_FILE):
         try:
             xls = pd.ExcelFile(EXCEL_FILE)
@@ -239,13 +239,11 @@ def load_all_data():
         except Exception:
             pass
 
-    # 3. 초기 엑셀 파일 생성
     save_all_data(def_cars, def_rules, def_cons, def_reps, def_fbs, def_man)
     return (def_cars, def_rules, def_cons, def_reps, def_fbs, def_man), "💻 로컬 연동모드 (엑셀)"
 
 
 def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
-    # 로컬 엑셀 저장
     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
         df_cars.to_excel(writer, sheet_name="1_차량기본정보", index=False)
         df_rules.to_excel(writer, sheet_name="2_교체주기기준", index=False)
@@ -254,7 +252,6 @@ def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
         df_fbs.to_excel(writer, sheet_name="5_특이사항", index=False)
         df_man.to_excel(writer, sheet_name="6_사고대처매뉴얼", index=False)
 
-    # 구글 시트 연동 시 동시 저장
     if ENABLE_GOOGLE_SHEETS:
         client = get_gspread_client()
         if client and "spreadsheet_url" in st.secrets:
@@ -278,7 +275,7 @@ def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
 
 
 # ---------------------------------------------------------
-# 4. 유틸리티 계산 함수 (소모품 상태 및 D-Day 계산)
+# 4. 유틸리티 계산 및 팝업(Dialog) 함수
 # ---------------------------------------------------------
 def safe_int(val, default=0):
     try:
@@ -330,10 +327,76 @@ def calc_dday_badge(target_date_str):
         return "⚪ 미상", 999
 
 
+@st.dialog("🚨 차량 상태 긴급 점검 알림")
+def show_car_alert_dialog(car_name, cons_alerts, fb_alerts, insp_alert):
+    st.markdown(f"**[{car_name}]** 운행 전 반드시 아래 사항을 확인해 주세요.")
+
+    if insp_alert:
+        st.markdown(f"""
+        <div class="popup-alert-box">
+            <b>📅 정기검사 일정 알림</b><br>{insp_alert}
+        </div>
+        """, unsafe_allow_html=True)
+
+    if cons_alerts:
+        st.markdown("#### 🔧 소모품 교체·점검 도래 항목")
+        for item in cons_alerts:
+            box_cls = "popup-alert-box" if "🔴" in item["badge"] else "popup-warn-box"
+            st.markdown(f"""
+            <div class="{box_cls}">
+                <b>{item['항목']} ({item['badge']})</b><br>
+                <small>마지막 교체 후 <b>+{item['driven_km']:,} km</b> 주행 / <b>{item['m_elapsed']}개월</b> 경과 (기준: {item['cycle_km']:,} km / {item['cycle_m']}개월)</small>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if fb_alerts:
+        st.markdown("#### 💬 미조치 차량 특이사항")
+        for fb in fb_alerts:
+            st.markdown(f"""
+            <div class="popup-alert-box">
+                <b>[{fb['분류']}] {fb['처리상태']}</b> (제보일: {fb['날짜']} / 작성자: {fb['작성자']})<br>
+                <span>{fb['내용']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if st.button("확인 완료 (창 닫기)", type="primary", use_container_width=True):
+        st.rerun()
+
+
+@st.dialog("🚨 전사 차량 중점 관리 알림 브리핑")
+def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_cars_list):
+    st.markdown(f"**[{branch_name}]** 현재 즉시 점검 및 조치가 필요한 항목 요약입니다.")
+
+    if alert_cons_list:
+        st.markdown(f"#### 🔧 소모품 교체·점검 도래 ({len(alert_cons_list)}건)")
+        st.dataframe(pd.DataFrame(alert_cons_list), use_container_width=True, hide_index=True)
+
+    if not pending_fbs_df.empty:
+        st.markdown(f"#### 💬 미조치 현장 특이사항 ({len(pending_fbs_df)}건)")
+        st.dataframe(
+            pending_fbs_df[["차량명", "날짜", "작성자", "분류", "내용", "처리상태"]],
+            use_container_width=True,
+            hide_index=True
+        )
+
+    if exp_cars_list:
+        st.markdown(f"#### 📅 정기검사 만료 임박 차량 ({len(exp_cars_list)}대)")
+        for exp_txt in exp_cars_list:
+            st.warning(exp_txt)
+
+    if st.button("브리핑 확인 완료", type="primary", use_container_width=True):
+        st.rerun()
+
+
 # ---------------------------------------------------------
 # 5. 데이터 불러오기 및 사이드바 구성
 # ---------------------------------------------------------
 (df_cars, df_rules, df_cons, df_reps, df_fbs, df_man), db_status_msg = load_all_data()
+
+if "shown_car_popups" not in st.session_state:
+    st.session_state.shown_car_popups = set()
+if "shown_admin_popup" not in st.session_state:
+    st.session_state.shown_admin_popup = False
 
 st.sidebar.title("🚘 차량 QR 관리 시스템")
 st.sidebar.caption(db_status_msg)
@@ -342,7 +405,6 @@ if st.sidebar.button("🔄 데이터 새로고침", use_container_width=True):
 
 st.sidebar.divider()
 
-# URL 쿼리 파라미터 확인 (?car=본사-1)
 query_params = st.query_params
 qr_car_param = query_params.get("car", None)
 
@@ -388,8 +450,44 @@ if view_mode == "📱 모바일 QR 화면 (현장)":
     if sel_car:
         car_row = df_cars[df_cars["차량명"] == sel_car].iloc[0]
         current_km = safe_int(car_row.get("최근 주행거리", 0))
-        insp_badge, _ = calc_dday_badge(car_row.get("정기검사 만료일", ""))
-        ins_badge, _ = calc_dday_badge(car_row.get("보험만료일", ""))
+        insp_badge, insp_diff = calc_dday_badge(car_row.get("정기검사 만료일", ""))
+
+        # 선택된 차량의 소모품 도래 및 미조치 특이사항 점검 (팝업용)
+        car_cons = df_cons[df_cons["차량명"] == sel_car]
+        cons_alerts = []
+        for _, c_row in car_cons.iterrows():
+            badge, driven_km, m_elapsed, _ = evaluate_consumable_status(
+                current_km,
+                c_row["마지막 교체 주행거리"],
+                c_row["교체주기(Km)"],
+                c_row["마지막 교체일"],
+                c_row["교체주기(개월)"]
+            )
+            if "🔴" in badge or "🟡" in badge:
+                cons_alerts.append({
+                    "항목": c_row["항목"],
+                    "badge": badge,
+                    "driven_km": driven_km,
+                    "m_elapsed": m_elapsed,
+                    "cycle_km": safe_int(c_row["교체주기(Km)"]),
+                    "cycle_m": safe_int(c_row["교체주기(개월)"])
+                })
+
+        car_fbs = df_fbs[df_fbs["차량명"] == sel_car].sort_values(by="날짜", ascending=False)
+        fb_alerts = []
+        for _, f_row in car_fbs.iterrows():
+            if "확인필요" in str(f_row["처리상태"]) or "조치중" in str(f_row["처리상태"]):
+                fb_alerts.append(f_row.to_dict())
+
+        insp_alert_msg = None
+        if insp_diff <= 30:
+            insp_alert_msg = f"정기검사 만료일({car_row.get('정기검사 만료일', '-')})이 {insp_badge} 상태입니다."
+
+        # 차량 진입 시 이상 항목이 있으면 자동으로 팝업 1회 실행
+        has_any_alert = bool(cons_alerts or fb_alerts or insp_alert_msg)
+        if has_any_alert and sel_car not in st.session_state.shown_car_popups:
+            st.session_state.shown_car_popups.add(sel_car)
+            show_car_alert_dialog(sel_car, cons_alerts, fb_alerts, insp_alert_msg)
 
         # 상단 네이비 차량 배너
         st.markdown(f"""
@@ -404,13 +502,12 @@ if view_mode == "📱 모바일 QR 화면 (현장)":
         </div>
         """, unsafe_allow_html=True)
 
-        # 차량 핵심 상태 요약 바 & 주행거리 빠른 갱신
-        c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 1.4])
+        # 차량 핵심 상태 요약 바 (보험만료일 제거 ➔ 3단 구성)
+        c1, c2, c3 = st.columns([1.3, 1.3, 1.4])
         c1.metric("현재 누적 주행거리", f"{current_km:,} km")
         c2.metric("정기검사 만료일", str(car_row.get("정기검사 만료일", "-")), insp_badge)
-        c3.metric("자동차 보험만료일", str(car_row.get("보험만료일", "-")), ins_badge)
 
-        with c4:
+        with c3:
             with st.popover("📍 주행거리 즉시 업데이트", use_container_width=True):
                 new_km_val = st.number_input("계기판 현재 주행거리 (km)", min_value=0, value=current_km, step=100)
                 if st.button("주행거리 저장", type="primary", use_container_width=True):
@@ -419,14 +516,16 @@ if view_mode == "📱 모바일 QR 화면 (현장)":
                     st.toast("주행거리가 업데이트되었습니다!")
                     st.rerun()
 
+            if has_any_alert:
+                if st.button("🚨 차량 주의사항 팝업 다시보기", use_container_width=True):
+                    show_car_alert_dialog(sel_car, cons_alerts, fb_alerts, insp_alert_msg)
+
         # 3대 메인 탭 구성
         tab_maint, tab_fb, tab_manual = st.tabs(["🛠️ 정비·소모품 이력", "💬 특이사항", "🚨 사고절차"])
 
         # [탭 1] 정비·소모품 이력
         with tab_maint:
             st.subheader("🔧 소모품 교체 주기 및 상태 점검")
-            car_cons = df_cons[df_cons["차량명"] == sel_car]
-
             if car_cons.empty:
                 st.info("등록된 소모품 관리 항목이 없습니다.")
             else:
@@ -488,11 +587,9 @@ if view_mode == "📱 모바일 QR 화면 (현장)":
                             }])
                             df_reps = pd.concat([df_reps, new_rep], ignore_index=True)
 
-                            # 주행거리 최신화
                             if r_km > current_km:
                                 df_cars.loc[df_cars["차량명"] == sel_car, "최근 주행거리"] = int(r_km)
 
-                            # 소모품 이력 자동 연동 업데이트
                             if r_item != "선택 안함":
                                 mask = (df_cons["차량명"] == sel_car) & (df_cons["항목"] == r_item)
                                 if mask.any():
@@ -517,8 +614,6 @@ if view_mode == "📱 모바일 QR 화면 (현장)":
         # [탭 2] 특이사항
         with tab_fb:
             st.subheader("💬 차량 특이사항 및 이상 징후 제보")
-            car_fbs = df_fbs[df_fbs["차량명"] == sel_car].sort_values(by="날짜", ascending=False)
-
             if car_fbs.empty:
                 st.info("접수된 차량 특이사항이 없습니다.")
             else:
@@ -570,8 +665,6 @@ else:
     branch_list = ["전체 보기"] + sorted(df_cars["소속본부"].dropna().unique().tolist())
     selected_branch = st.sidebar.selectbox("조회 대상 본부", branch_list)
 
-    st.title("📊 전사 차량 QR 이력·상태 통합 관제 대시보드")
-
     filtered_cars = df_cars if selected_branch == "전체 보기" else df_cars[df_cars["소속본부"] == selected_branch]
     target_car_names = filtered_cars["차량명"].tolist()
 
@@ -591,24 +684,38 @@ else:
                 "경과개월": m_elapsed
             })
 
-    # 미조치 특이사항 건수 집계
+    # 미조치 특이사항 집계
     filtered_fbs = df_fbs[df_fbs["차량명"].isin(target_car_names)]
-    pending_fbs_cnt = len(filtered_fbs[filtered_fbs["처리상태"].astype(str).str.contains("확인필요|조치중")])
+    pending_fbs_df = filtered_fbs[filtered_fbs["처리상태"].astype(str).str.contains("확인필요|조치중")]
 
-    # 검사/보험 만료 임박 건수 집계
-    exp_alert_cnt = 0
+    # 정기검사 만료 임박 집계 (보험만료일 제외)
+    exp_cars_list = []
     for _, car_r in filtered_cars.iterrows():
-        _, d1 = calc_dday_badge(car_r.get("정기검사 만료일", ""))
-        _, d2 = calc_dday_badge(car_r.get("보험만료일", ""))
-        if d1 <= 30 or d2 <= 30:
-            exp_alert_cnt += 1
+        b_txt, d1 = calc_dday_badge(car_r.get("정기검사 만료일", ""))
+        if d1 <= 30:
+            exp_cars_list.append(f"{car_r['차량명']} ({car_r['차종']}) - 정기검사 만료일: {car_r.get('정기검사 만료일', '-')} [{b_txt}]")
+
+    # 관리자 대시보드 진입 시 주의사항이 있으면 자동 팝업 1회 실행
+    has_admin_alerts = bool(alert_cons_list or not pending_fbs_df.empty or exp_cars_list)
+    if has_admin_alerts and not st.session_state.shown_admin_popup:
+        st.session_state.shown_admin_popup = True
+        show_admin_alert_dialog(selected_branch, alert_cons_list, pending_fbs_df, exp_cars_list)
+
+    title_col1, title_col2 = st.columns([3.5, 1])
+    with title_col1:
+        st.title("📊 전사 차량 QR 이력·상태 통합 관제 대시보드")
+    with title_col2:
+        st.write("")
+        if has_admin_alerts:
+            if st.button("🚨 중점 관리 알림 팝업 띄우기", use_container_width=True):
+                show_admin_alert_dialog(selected_branch, alert_cons_list, pending_fbs_df, exp_cars_list)
 
     # 상단 KPI 요약 카드 4개
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("🚘 관리 대상 차량", f"{len(filtered_cars)} 대")
     k2.metric("🔧 소모품 점검·교체 도래", f"{len(alert_cons_list)} 건")
-    k3.metric("💬 미조치 현장 특이사항", f"{pending_fbs_cnt} 건")
-    k4.metric("📅 검사·보험 만료 임박(30일내)", f"{exp_alert_cnt} 대")
+    k3.metric("💬 미조치 현장 특이사항", f"{len(pending_fbs_df)} 건")
+    k4.metric("📅 정기검사 만료 임박(30일내)", f"{len(exp_cars_list)} 대")
 
     st.divider()
 
