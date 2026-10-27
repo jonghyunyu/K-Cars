@@ -440,7 +440,7 @@ if "shown_admin_popup" not in st.session_state:
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
-st.sidebar.title("🚘 차량 QR 관리 시스템")
+st.sidebar.title("🚘 모바일 차량관리 QR시스템")
 st.sidebar.caption(db_status_msg)
 if gs_err_detail:
     st.sidebar.warning(f"⚠️ 연동 점검: {gs_err_detail}")
