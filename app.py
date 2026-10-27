@@ -69,7 +69,7 @@ st.markdown("""
 EXCEL_FILE = "car_data.xlsx"
 
 # 구글 시트 작성 완료 후 연동할 때 True로 변경
-ENABLE_GOOGLE_SHEETS = False
+ENABLE_GOOGLE_SHEETS = True
 
 
 # ---------------------------------------------------------
