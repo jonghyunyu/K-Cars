@@ -194,6 +194,32 @@ def get_sheet_url():
 
 def get_gspread_client():
     if not GSPREAD_AVAILABLE or not ENABLE_GOOGLE_SHEETS:
+        return None, "연동 비활성화"
+    try:
+        import json
+        # Secrets 대신 코드 내부에 안전하게 박아넣은 서비스 계정 정보
+        creds_info = {
+            "type": "service_account",
+            "project_id": "k-cars-512714",
+            "private_key_id": "4f6e7e997b8b63d6b667bf5725b5aa8f6ae95f2a",
+            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDHyIeEndKxlZTv\nmaHnDReOhPyH3QNU/C46aVbltQeNJOTAe+DV8ak99ooszi78afvnTP0JLK6gCMU9\n4WgalA8VwvcERYIrJT/l6MIJJ5LoOQToUcxRdWmtaZrXIz7NIQpTMih1Or7adiaD\nxJ7i1BZGmVXr1VqCpA7tED5SIsMcFnseNCXUJwHStgfPbh3ssxONDjbiG18ciB4K\np7+0ZqTr7xEPpri5ETcc1SPC48LnUqlkaPGY47rKyr9LdJ/9RW1SHXXTful1fh+q\naEnPDoRFwXglgDK/vzMr90IyU6LW6WIWDcX+GMdCg3RoPXR+6xNRpqVsqY1/d1Ls\nd/fiBN1zAgMBAAECggEAClGKA6TNy0HSGhwqleDeVpqHxdH5y9usTq1bCII0qMA/\nEFyq6tOs6hSY1X60Q+NuWC6hxp6kny2b5euiAxK/CgtdKIX8wVorK5hLwp8Pvnz6\niwU8wTEy0lBMrwjNp1jUoXdngxhMwzSsVsyYEuY2shlyOi3K1End0NJ3uuK7afDE\nUEWouhwJbhKiT9+JXgVM5F7TQtSiHH5boq3RKqhqlroVAxRhFx/SIe2btMmkkSuv\nxwylb9oTQPQcRliPaXD3LTcRhLlV6kasWXCWzxlnggTxs0a1wI6w8qK2H9u56/BN\nuOgoTCWK6+Od9qxamQh8xsb5A0Ri+TbyFPVSQDiIAQKBgQD1SRlQ42DE7vtZw/PY\n/quK6Usjpf6xtJhPnMlp41eC2psJsL4HS70zT/G4980nGo9D1yZCT90ylgRsqz6V\nH/YglfJRVg+MfFrCHvImiQtFVPhkofQRnjubNYvGprBOY5YpAjzg7Zgh0pcad7vo\nnuX//CEbUopKAyjpUdHqm4OYpwKBgQDQgppJIEeVZvwhN3BLB8+VFbMJKPXZjlrj\nmC3GhSy4LtLfP8/oOI2q7bb1GXlDLwego5TVMnljveX+m61nwVCY+TV08VHrfW4G\nJCniOK+E7wl3mRifgXJndXiIy+bCH3WVsRXptrdfR0tWVnLLd7ghxreSeG+7mYoP\n9tyh9ysiVQKBgQCNM3J2ZR6M38IkD7CtZxWbVudhcypmZD8V/XzZDv2On4eGkY8j\nJg+ZnVjakRQxgZGdjRpCLDV67G9Jm17ge9C1O3yOJAu5ZNDeVPAzDMtHMz32uGCH\nT96iX7XCOqzdw2hq3RXsqfnc5p0DqI+svuRKc3sffmmLZ7xCbE56TuH3mwKBgCZl\nJkv46bWVNTBYqRDn602kpUc2h678C7iFOUipFUcFOEdr1LkKUOv8wgf4HOBGNL1b\n4fgwRzIasdNkj1XfvxusKC/UkCUw/6WZ2yyRC6EK809WnbYhfBOZCg0GnwN4D4r1\BPf4cWPWGQVY/eKBtSJjGUKbcte0ujueVZptjT/RAoGAY+0yfYnuZPJGgt6AZTvA\nvs1aVrWsy53lnGjZg+PXXDEPUY3iOq4SxfUjds4Pfmys4wv9yC+mmnGiwNlYcfaF\n1wWrlU/obxkhp7nut8Net9rZncTjYjLwF56D+swplFgSMsg+J/eilrQBBAhMNG7P\nUvi+2j0lMHDGqGaK3sooxRc=\n-----END PRIVATE KEY-----",
+            "client_email": "k-cars@k-cars-512714.iam.gserviceaccount.com",
+            "client_id": "101302661809874002306",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/k-cars%40k-cars-512714.iam.gserviceaccount.com",
+            "universe_domain": "googleapis.com"
+        }
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        return gspread.authorize(credentials), None
+    except Exception as e:
+        return None, f"구글 인증 오류: {e}"
+    if not GSPREAD_AVAILABLE or not ENABLE_GOOGLE_SHEETS:
         return None, "gspread 라이브러리 미설치 또는 연동 비활성화"
     try:
         if "gcp_service_account" not in st.secrets:
