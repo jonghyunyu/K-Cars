@@ -201,9 +201,16 @@ def get_gspread_client():
         creds_dict = dict(st.secrets["gcp_service_account"])
         if "private_key" in creds_dict:
             raw_key = str(creds_dict["private_key"]).strip()
+            
+            # PEM 키 완벽 정제 로직
             cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
             cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
-            pure_chars = "".join(cleaned.split())
+            pure_chars = "".join(re.findall(r'[A-Za-z0-9+/=]', cleaned))
+            
+            missing_padding = len(pure_chars) % 4
+            if missing_padding:
+                pure_chars += "=" * (4 - missing_padding)
+                
             chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
             creds_dict["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
 
@@ -221,7 +228,6 @@ def read_worksheet_safe(spreadsheet, ws_name, default_df):
     try:
         ws = spreadsheet.worksheet(ws_name)
     except Exception:
-        # 시트 탭이 없을 경우 자동 생성 후 기본 데이터 입력
         ws = spreadsheet.add_worksheet(title=ws_name, rows="100", cols="20")
         df_str = default_df.fillna("").astype(str)
         ws.update([df_str.columns.values.tolist()] + df_str.values.tolist())
@@ -574,7 +580,7 @@ if view_mode == "탑승차량 정보조회":
 
         tab_maint, tab_fb, tab_manual = st.tabs(["🛠️ 정비·소모품 이력", "💬 특이사항", "🚨 사고절차"])
 
-        # [탭 1] 정비·소모품 이력 (권장 교체시기 포함)
+        # [탭 1] 정비·소모품 이력
         with tab_maint:
             st.subheader("🔧 소모품 교체 주기 및 상태 점검")
             if car_cons.empty:
