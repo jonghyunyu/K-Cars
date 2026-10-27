@@ -715,7 +715,7 @@ if view_mode == "탑승차량 정보조회":
         # [탭 3] 사고절차
         with tab_manual:
             st.subheader("🚨 사고 및 긴급상황 발생 시 행동 매뉴얼")
-            st.warning(f"📞 **긴급 연락처 안내** | 차량 담당 부서: **{car_row['담당자_연락처']}**")
+            st.warning(f"📞 **긴급 연락처 안내** | 차량 담당 직원: **{car_row['담당자_연락처']}**")
 
             for _, m_row in df_man.sort_values(by="순서").iterrows():
                 st.markdown(f"""
