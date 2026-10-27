@@ -68,8 +68,9 @@ st.markdown("""
 
 EXCEL_FILE = "car_data.xlsx"
 
-# 구글 시트 작성 완료 후 연동할 때 True로 변경
+# 구글 시트 실시간 연동 활성화 및 기본 시트 주소 내장
 ENABLE_GOOGLE_SHEETS = True
+DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1HDP5OwqbtV4xRerESbj1_inMNLtiFA8Q7QTC6ThB7Kk/edit"
 
 
 # ---------------------------------------------------------
@@ -172,6 +173,7 @@ def normalize_dataframe(df, default_df, drop_legacy_cols=True):
     if df is None or df.empty:
         return default_df.copy()
     df_clean = df.copy()
+    df_clean.columns = [str(c).strip() for c in df_clean.columns]
     if drop_legacy_cols:
         for legacy_col in ["주차위치", "주차 위치", "키위치", "키 위치", "보관장소", "보험만료일", "자동차 보험만료일"]:
             if legacy_col in df_clean.columns:
@@ -182,51 +184,81 @@ def normalize_dataframe(df, default_df, drop_legacy_cols=True):
     return df_clean[default_df.columns]
 
 
+def get_sheet_url():
+    if "spreadsheet_url" in st.secrets:
+        return str(st.secrets["spreadsheet_url"]).strip()
+    if "gcp_service_account" in st.secrets and "spreadsheet_url" in st.secrets["gcp_service_account"]:
+        return str(st.secrets["gcp_service_account"]["spreadsheet_url"]).strip()
+    return DEFAULT_SHEET_URL
+
+
 def get_gspread_client():
     if not GSPREAD_AVAILABLE or not ENABLE_GOOGLE_SHEETS:
-        return None
+        return None, "gspread 라이브러리 미설치 또는 연동 비활성화"
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            if "private_key" in creds_dict:
-                raw_key = str(creds_dict["private_key"])
-                cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
-                cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
-                pure_chars = "".join(re.findall(r'[A-Za-z0-9+/=]', cleaned))
-                missing_padding = len(pure_chars) % 4
-                if missing_padding:
-                    pure_chars += "=" * (4 - missing_padding)
-                chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
-                creds_dict["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
+        if "gcp_service_account" not in st.secrets:
+            return None, "Secrets에 [gcp_service_account] 항목이 없습니다."
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        if "private_key" in creds_dict:
+            raw_key = str(creds_dict["private_key"]).strip()
+            cleaned = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+            cleaned = cleaned.replace("\\n", "\n").replace("\r", "")
+            pure_chars = "".join(cleaned.split())
+            chunks = [pure_chars[i:i+64] for i in range(0, len(pure_chars), 64)]
+            creds_dict["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
 
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(credentials)
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(credentials), None
+    except Exception as e:
+        return None, f"구글 인증키(private_key) 오류: {e}"
+
+
+def read_worksheet_safe(spreadsheet, ws_name, default_df):
+    try:
+        ws = spreadsheet.worksheet(ws_name)
     except Exception:
-        return None
-    return None
+        # 시트 탭이 없을 경우 자동 생성 후 기본 데이터 입력
+        ws = spreadsheet.add_worksheet(title=ws_name, rows="100", cols="20")
+        df_str = default_df.fillna("").astype(str)
+        ws.update([df_str.columns.values.tolist()] + df_str.values.tolist())
+        return default_df.copy()
+
+    vals = ws.get_all_values()
+    if not vals or len(vals) < 2:
+        return default_df.copy()
+    headers = [str(h).strip() for h in vals[0]]
+    rows = [r for r in vals[1:] if any(str(cell).strip() != "" for cell in r)]
+    if not rows:
+        return pd.DataFrame(columns=default_df.columns)
+    df_raw = pd.DataFrame(rows, columns=headers)
+    return normalize_dataframe(df_raw, default_df)
 
 
 def load_all_data():
     def_cars, def_rules, def_cons, def_reps, def_fbs, def_man = get_default_dataframes()
+    gs_err_msg = None
 
     if ENABLE_GOOGLE_SHEETS:
-        client = get_gspread_client()
-        if client and "spreadsheet_url" in st.secrets:
+        client, auth_err = get_gspread_client()
+        if client:
             try:
-                spreadsheet = client.open_by_url(st.secrets["spreadsheet_url"])
-                d_cars = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("1_차량기본정보").get_all_records()), def_cars)
-                d_rules = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("2_교체주기기준").get_all_records()), def_rules)
-                d_cons = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("3_소모품이력").get_all_records()), def_cons)
-                d_reps = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("4_정비수리이력").get_all_records()), def_reps)
-                d_fbs = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("5_특이사항").get_all_records()), def_fbs)
-                d_man = normalize_dataframe(pd.DataFrame(spreadsheet.worksheet("6_사고대처매뉴얼").get_all_records()), def_man)
-                return (d_cars, d_rules, d_cons, d_reps, d_fbs, d_man), "🟢 구글 스프레드시트 실시간 연동중"
-            except Exception:
-                pass
+                sheet_url = get_sheet_url()
+                spreadsheet = client.open_by_url(sheet_url)
+                d_cars = read_worksheet_safe(spreadsheet, "1_차량기본정보", def_cars)
+                d_rules = read_worksheet_safe(spreadsheet, "2_교체주기기준", def_rules)
+                d_cons = read_worksheet_safe(spreadsheet, "3_소모품이력", def_cons)
+                d_reps = read_worksheet_safe(spreadsheet, "4_정비수리이력", def_reps)
+                d_fbs = read_worksheet_safe(spreadsheet, "5_특이사항", def_fbs)
+                d_man = read_worksheet_safe(spreadsheet, "6_사고대처매뉴얼", def_man)
+                return (d_cars, d_rules, d_cons, d_reps, d_fbs, d_man), "🟢 구글 스프레드시트 실시간 연동중", None
+            except Exception as e:
+                gs_err_msg = f"시트 접근 오류(공유권한/URL 확인): {e}"
+        else:
+            gs_err_msg = auth_err
 
     if os.path.exists(EXCEL_FILE):
         try:
@@ -237,12 +269,12 @@ def load_all_data():
             d_reps = normalize_dataframe(pd.read_excel(xls, "4_정비수리이력"), def_reps)
             d_fbs = normalize_dataframe(pd.read_excel(xls, "5_특이사항"), def_fbs)
             d_man = normalize_dataframe(pd.read_excel(xls, "6_사고대처매뉴얼"), def_man)
-            return (d_cars, d_rules, d_cons, d_reps, d_fbs, d_man), "💻 로컬 연동모드 (엑셀)"
+            return (d_cars, d_rules, d_cons, d_reps, d_fbs, d_man), "💻 로컬 연동모드 (엑셀)", gs_err_msg
         except Exception:
             pass
 
     save_all_data(def_cars, def_rules, def_cons, def_reps, def_fbs, def_man)
-    return (def_cars, def_rules, def_cons, def_reps, def_fbs, def_man), "💻 로컬 연동모드 (엑셀)"
+    return (def_cars, def_rules, def_cons, def_reps, def_fbs, def_man), "💻 로컬 연동모드 (엑셀)", gs_err_msg
 
 
 def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
@@ -255,10 +287,10 @@ def save_all_data(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man):
         df_man.to_excel(writer, sheet_name="6_사고대처매뉴얼", index=False)
 
     if ENABLE_GOOGLE_SHEETS:
-        client = get_gspread_client()
-        if client and "spreadsheet_url" in st.secrets:
+        client, _ = get_gspread_client()
+        if client:
             try:
-                spreadsheet = client.open_by_url(st.secrets["spreadsheet_url"])
+                spreadsheet = client.open_by_url(get_sheet_url())
                 sheet_map = {
                     "1_차량기본정보": df_cars,
                     "2_교체주기기준": df_rules,
@@ -391,7 +423,7 @@ def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_ca
 # ---------------------------------------------------------
 # 5. 데이터 불러오기 및 사이드바 구성 (비밀번호 인증 포함)
 # ---------------------------------------------------------
-(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man), db_status_msg = load_all_data()
+(df_cars, df_rules, df_cons, df_reps, df_fbs, df_man), db_status_msg, gs_err_detail = load_all_data()
 
 if "shown_car_popups" not in st.session_state:
     st.session_state.shown_car_popups = set()
@@ -402,6 +434,8 @@ if "admin_authenticated" not in st.session_state:
 
 st.sidebar.title("🚘 차량 QR 관리 시스템")
 st.sidebar.caption(db_status_msg)
+if gs_err_detail:
+    st.sidebar.warning(f"⚠️ 연동 점검: {gs_err_detail}")
 if st.sidebar.button("🔄 데이터 새로고침", use_container_width=True):
     st.rerun()
 
@@ -540,7 +574,7 @@ if view_mode == "탑승차량 정보조회":
 
         tab_maint, tab_fb, tab_manual = st.tabs(["🛠️ 정비·소모품 이력", "💬 특이사항", "🚨 사고절차"])
 
-        # [탭 1] 정비·소모품 이력 (가운데에 권장 교체시기 추가 반영)
+        # [탭 1] 정비·소모품 이력 (권장 교체시기 포함)
         with tab_maint:
             st.subheader("🔧 소모품 교체 주기 및 상태 점검")
             if car_cons.empty:
