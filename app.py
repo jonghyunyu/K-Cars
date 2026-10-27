@@ -16,7 +16,7 @@ except ImportError:
 # 1. 기본 페이지 설정 및 스타일
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="차량 QR 이력·상태 관리 시스템",
+    page_title="모바일 차량관리 QR시스템",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded"
