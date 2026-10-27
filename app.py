@@ -68,7 +68,7 @@ st.markdown("""
 
 EXCEL_FILE = "car_data.xlsx"
 
-# UI 및 팝업 확인 후 다음 단계에서 True로 전환
+# 구글 시트 작성 완료 후 연동할 때 True로 변경
 ENABLE_GOOGLE_SHEETS = False
 
 
@@ -135,6 +135,9 @@ def get_default_dataframes():
     df_cons = pd.DataFrame([
         {"차량명": "본사-1", "항목": "에어컨필터", "교체주기(Km)": 15000, "교체주기(개월)": 6, "마지막 교체일": "2026-03-15", "마지막 교체 주행거리": 10000},
         {"차량명": "본사-1", "항목": "타이어 위치교환/교체", "교체주기(Km)": 20000, "교체주기(개월)": 24, "마지막 교체일": "2025-11-10", "마지막 교체 주행거리": 10000},
+        {"차량명": "본사-1", "항목": "브레이크패드", "교체주기(Km)": 40000, "교체주기(개월)": 24, "마지막 교체일": "2025-05-01", "마지막 교체 주행거리": 5000},
+        {"차량명": "본사-1", "항목": "와이퍼 블레이드", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2026-07-20", "마지막 교체 주행거리": 19500},
+        {"차량명": "본사-1", "항목": "12V 보조배터리", "교체주기(Km)": 50000, "교체주기(개월)": 36, "마지막 교체일": "2025-01-10", "마지막 교체 주행거리": 0},
         {"차량명": "본사-2", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2026-01-10", "마지막 교체 주행거리": 40000},
         {"차량명": "본사-2", "항목": "에어컨필터", "교체주기(Km)": 15000, "교체주기(개월)": 6, "마지막 교체일": "2026-03-10", "마지막 교체 주행거리": 40000},
         {"차량명": "북부-1", "항목": "엔진오일", "교체주기(Km)": 10000, "교체주기(개월)": 12, "마지막 교체일": "2025-12-05", "마지막 교체 주행거리": 50500},
@@ -309,7 +312,6 @@ def evaluate_consumable_status(current_km, last_km, cycle_km, last_date_str, cyc
     else:
         badge = "🟢 양호"
 
-    # 3, 11, 14번 요구사항: 경과개월 반올림한 자연수 표기
     return badge, driven_km, round(months_elapsed), min(1.0, max_ratio)
 
 
@@ -327,7 +329,6 @@ def calc_dday_badge(target_date_str):
         return "⚪ 미상", 999
 
 
-# 1, 4번 요구사항 반영
 @st.dialog("🚗 차량 상태정보 알림")
 def show_car_alert_dialog(car_name, cons_alerts, fb_alerts, insp_alert):
     st.markdown(f"**[{car_name}]** 운행 전 반드시 아래 사항을 확인해 주세요.")
@@ -364,11 +365,8 @@ def show_car_alert_dialog(car_name, cons_alerts, fb_alerts, insp_alert):
         st.rerun()
 
 
-# 9, 10번 요구사항 반영 (2번 문구 삭제)
 @st.dialog("전체 차량 상태정보 알림")
 def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_cars_list):
-    st.markdown(f"**[{branch_name}]** 현재 즉시 점검 및 조치가 필요한 항목 요약입니다.")
-
     if alert_cons_list:
         st.markdown(f"#### 🔧 소모품 교체·점검 도래 ({len(alert_cons_list)}건)")
         st.dataframe(pd.DataFrame(alert_cons_list), use_container_width=True, hide_index=True)
@@ -391,7 +389,7 @@ def show_admin_alert_dialog(branch_name, alert_cons_list, pending_fbs_df, exp_ca
 
 
 # ---------------------------------------------------------
-# 5. 데이터 불러오기 및 사이드바 구성 (방법1 비밀번호 인증 포함)
+# 5. 데이터 불러오기 및 사이드바 구성 (비밀번호 인증 포함)
 # ---------------------------------------------------------
 (df_cars, df_rules, df_cons, df_reps, df_fbs, df_man), db_status_msg = load_all_data()
 
@@ -412,7 +410,6 @@ st.sidebar.divider()
 query_params = st.query_params
 qr_car_param = query_params.get("car", None)
 
-# 5, 8번 요구사항 반영 모드 선택 (사이드바 최상단 노출)
 nav_options = ["탑승차량 정보조회", "관리자 대시보드"]
 selected_nav = st.sidebar.radio(
     "🖥️ 화면 모드 선택",
@@ -420,7 +417,6 @@ selected_nav = st.sidebar.radio(
     index=0
 )
 
-# 방법1 보안 인증 로직
 if selected_nav == "관리자 대시보드":
     if not st.session_state.admin_authenticated:
         st.sidebar.subheader("🔒 관리자 인증 필요")
@@ -544,7 +540,7 @@ if view_mode == "탑승차량 정보조회":
 
         tab_maint, tab_fb, tab_manual = st.tabs(["🛠️ 정비·소모품 이력", "💬 특이사항", "🚨 사고절차"])
 
-        # [탭 1] 정비·소모품 이력
+        # [탭 1] 정비·소모품 이력 (가운데에 권장 교체시기 추가 반영)
         with tab_maint:
             st.subheader("🔧 소모품 교체 주기 및 상태 점검")
             if car_cons.empty:
@@ -552,20 +548,26 @@ if view_mode == "탑승차량 정보조회":
             else:
                 cols_cons = st.columns(2)
                 for idx, (_, c_row) in enumerate(car_cons.iterrows()):
+                    last_km_val = safe_int(c_row["마지막 교체 주행거리"])
+                    cycle_km_val = safe_int(c_row["교체주기(Km)"])
+                    cycle_m_val = safe_int(c_row["교체주기(개월)"])
+                    rec_target_km = last_km_val + cycle_km_val
+
                     badge, driven_km, m_elapsed, ratio = evaluate_consumable_status(
                         current_km,
-                        c_row["마지막 교체 주행거리"],
-                        c_row["교체주기(Km)"],
+                        last_km_val,
+                        cycle_km_val,
                         c_row["마지막 교체일"],
-                        c_row["교체주기(개월)"]
+                        cycle_m_val
                     )
                     with cols_cons[idx % 2]:
                         st.markdown(f"""
                         <div class="status-card">
                             <b>{c_row['항목']}</b> &nbsp; <span style="float:right; font-weight:bold;">{badge}</span><br>
-                            <small style="color:#475569;">
-                                마지막 교체: {c_row['마지막 교체일']} ({safe_int(c_row['마지막 교체 주행거리']):,} km)<br>
-                                경과: <b>+{driven_km:,} km</b> / 기준 {safe_int(c_row['교체주기(Km)']):,} km ({m_elapsed}개월 경과)
+                            <small style="color:#475569; line-height:1.6;">
+                                마지막 교체: {c_row['마지막 교체일']} ({last_km_val:,} km)<br>
+                                권장 교체시기: <b>{rec_target_km:,} km</b> ({cycle_m_val}개월 주기)<br>
+                                경과: <b>+{driven_km:,} km ({m_elapsed}개월 경과)</b> / 기준 {cycle_km_val:,} km ({cycle_m_val}개월)
                             </small>
                         </div>
                         """, unsafe_allow_html=True)
@@ -591,7 +593,6 @@ if view_mode == "탑승차량 정보조회":
                     r_km = f_col2.number_input("정비 시점 주행거리 (Km)", min_value=0, value=current_km, step=100)
                     r_type = f_col1.selectbox("정비 구분", ["소모품", "일반정비", "사고수리", "정기점검"])
                     
-                    # 6번 요구사항 반영
                     all_rule_items = df_rules["항목"].tolist() if not df_rules.empty else ["엔진오일"]
                     r_item = f_col2.selectbox("연동할 소모품 항목 (소모품 교체 시)", ["선택 안함"] + all_rule_items)
                     
@@ -647,7 +648,6 @@ if view_mode == "탑승차량 정보조회":
             st.markdown("#### ✍️ 운행 중 특이사항 신규 등록")
             with st.form("add_feedback_form", clear_on_submit=True):
                 fb_c1, fb_c2 = st.columns(2)
-                # 7번 요구사항 반영
                 fb_writer = fb_c1.text_input("작성자 (성명/부서명)")
                 fb_cat = fb_c2.selectbox("분류", ["소음/진동", "경고등 점등", "외관손상", "타이어/제동", "실내청결/비품", "기타"])
                 fb_content = st.text_area("상세 내용 (증상이나 요청사항을 적어주세요)")
@@ -729,7 +729,6 @@ else:
     with title_col2:
         st.write("")
         if has_admin_alerts:
-            # 9번 요구사항 반영
             if st.button("전체 차량 상태정보 알림 확인", use_container_width=True):
                 show_admin_alert_dialog(selected_branch, alert_cons_list, pending_fbs_df, exp_cars_list)
 
@@ -741,7 +740,6 @@ else:
 
     st.divider()
 
-    # 12, 17, 18, 19번 요구사항 반영 탭 문구 수정
     adm_tab1, adm_tab2, adm_tab3, adm_tab4 = st.tabs([
         "전체 차량 현황 및 정비이력 모아보기",
         "현장 접수 특이사항 조치현황",
@@ -749,7 +747,7 @@ else:
         "차량 부착용 QR 코드 생성기"
     ])
 
-    # [관리자 탭 1] 차량 현황 및 정비이력 모아보기 (12, 13번 요구사항)
+    # [관리자 탭 1] 전체 차량 현황 및 정비이력 모아보기
     with adm_tab1:
         st.subheader("전체 업무용 차량 현황")
         st.dataframe(filtered_cars, use_container_width=True, hide_index=True)
@@ -767,7 +765,7 @@ else:
             recent_reps = df_reps[df_reps["차량명"].isin(target_car_names)].sort_values(by="일자", ascending=False)
             st.dataframe(recent_reps, use_container_width=True, hide_index=True)
 
-    # [관리자 탭 2] 특이사항 접수·조치 관리 (15, 16번 요구사항)
+    # [관리자 탭 2] 현장 접수 특이사항 조치현황
     with adm_tab2:
         st.subheader("현장 접수 특이사항 조치현황")
         st.caption("표에서 '처리상태'와 '확인일자'를 직접 수정한 뒤 아래 저장 버튼을 누르면 즉시 반영됩니다.")
@@ -792,7 +790,7 @@ else:
             st.success("특이사항 상태가 저장되었습니다!")
             st.rerun()
 
-    # [관리자 탭 3] 전체 차량 데이터 수정 (17, 18번 요구사항)
+    # [관리자 탭 3] 전체 차량 데이터 수정
     with adm_tab3:
         st.subheader("전체 차량 데이터 수정")
         sheet_choice = st.selectbox(
@@ -831,7 +829,7 @@ else:
             st.success(f"'{sheet_choice}' 데이터가 저장되었습니다!")
             st.rerun()
 
-    # [관리자 탭 4] 차량별 QR 코드 생성 (19번 요구사항)
+    # [관리자 탭 4] 차량 부착용 QR 코드 생성기
     with adm_tab4:
         st.subheader("차량 부착용 QR 코드 생성기")
         base_url = st.text_input("배포된 스트림릿 앱 주소 입력", value="https://k-cars.streamlit.app")
